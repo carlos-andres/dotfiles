@@ -1,0 +1,7 @@
+set completion-ignore-case on
+set show-all-if-ambiguous on
+set completion-query-items 200
+set mark-symlinked-directories on
+set skip-completed-text on
+set page-completions off
+set bell-style none
