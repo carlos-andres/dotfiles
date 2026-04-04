@@ -1,0 +1,12 @@
+set linenumbers
+set constantshow
+set softwrap
+set indicator
+set jumpyscrolling
+set mouse
+set minibar
+set quickblank
+set multibuffer
+
+include "~/.nano/*.nanorc"
+include "~/.nano/syntax/*.nanorc"
