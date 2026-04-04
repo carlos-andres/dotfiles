@@ -11,11 +11,9 @@ The goal is not perfection, but iteration: documenting what works, what changes,
 ## Environment
 
 * Shell: `bash`
-* Terminals:
-
-  * `WezTerm`
-  * `iTerm2`
+* Terminals: `WezTerm`, `iTerm2`
 * OS: `macOS`
+* Editor: `nano` (Homebrew)
 
 ## Philosophy
 
@@ -24,32 +22,43 @@ The goal is not perfection, but iteration: documenting what works, what changes,
 * Optimize for usability over complexity
 * Document decisions when they matter
 
-This repo is both:
+This repo is a **log of discoveries** and workflow improvements — both a working setup and a reference for why things are the way they are.
 
-* A **log of discoveries** and workflow improvements
+## Contents
 
-## Current Contents
+| File | Purpose |
+|------|---------|
+| `.inputrc` | Readline configuration for tab completion and command-line behavior |
+| `.gitignore_global` | Global Git ignore rules for macOS, IDE, and AI tool artifacts |
+| `.nanorc` | Nano editor setup with syntax highlighting and modern defaults |
+| `.wezterm.lua` | WezTerm terminal configuration with keybindings and status bar |
 
-* `.inputrc` — Readline configuration for improved tab completion and command-line behavior
+Each file has detailed documentation in the [`docs/`](docs/INDEX.md) folder explaining what it does and why.
+
+## Setup Scripts
+
+Scripts in `.chezmoiscripts/` run automatically during `chezmoi apply`:
+
+| Script | Purpose |
+|--------|---------|
+| `run_once_after_configure-git-global.sh` | Sets `core.excludesFile` in global Git config |
 
 ## Usage
 
 This repository is managed with [`chezmoi`](https://www.chezmoi.io/), allowing reproducible setup across machines.
-
-Basic flow:
 
 ```bash
 chezmoi init https://github.com/carlos-andres/dotfiles.git
 chezmoi apply
 ```
 
+Setup scripts run automatically on first apply. See the [documentation index](docs/INDEX.md) for prerequisites that require manual steps (like installing nano via Homebrew).
+
 ## Roadmap
 
-Planned improvements:
-
-* Add documentation per file (what + why)
-* Create a table of contents for all configs
-* Include terminal-specific configurations
+* Expand to more shell and tool configurations
+* Add `run_once_` scripts for remaining setup dependencies
+* Explore chezmoi templates for multi-machine support
 
 ## Notes
 
