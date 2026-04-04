@@ -1,0 +1,140 @@
+*~
+###############################################################################
+# macOS system files
+###############################################################################
+
+# General Finder metadata
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+
+# Resource fork / thumbnail files
+._*
+
+# Files that can appear at the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Remote AFP / network share metadata
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+###############################################################################
+# JetBrains IDEs (IntelliJ IDEA, PhpStorm, WebStorm, PyCharm, etc.)
+###############################################################################
+
+# Project files
+.idea/
+*.iml
+
+# IDE-specific workspace and shelf (user-specific, no need in git)
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/shelf
+
+# Data sources & local settings
+.idea/dataSources/
+.idea/dataSources.ids
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/uiDesigner.xml
+
+# Gradle / other plugin stuff (often user-local)
+.idea/gradle.xml
+.idea/libraries
+
+# Local history
+.idea/localHistory/
+
+# JetBrains cache directories
+out/
+.idea/caches/
+.idea/modules.xml
+
+# Misc
+*.iws
+
+###############################################################################
+# VS Code / VSCodium
+###############################################################################
+
+# User-specific settings & state
+.vscode/
+.vscode-oss/
+.history/
+
+# Local server / debug logs
+*.code-workspace
+*.vsix
+
+# VS Code extensions’ caches (various tools might create these)
+.vscode-test/
+.vscode-solidity/
+.vscode-insiders/
+.vscode-remote/
+
+###############################################################################
+# Editor / tooling – common AI / assistant related
+###############################################################################
+
+# Cursor (AI-enhanced VS Code-like editor)
+.cursor/
+
+# Sourcegraph / Cody
+.sourcegraph/
+
+# Codeium
+.codeium/
+
+# TabNine / AI completion
+.tabnine/
+.tabnine.json
+
+# GitHub Copilot (local configs/cache that sometimes appear)
+.github-copilot/
+copilot-config.json
+copilot-logs/
+
+# General LSP / editor caches
+.lsp/
+.cache/
+
+###############################################################################
+# Claude (AI tools / CLIs / editors)
+###############################################################################
+
+# Generic Claude configuration / cache directories
+CLAUDE.md
+.claude/
+claude-cache/
+claude-config/
+claude-logs/
+
+# If any Claude-based editor/tool uses a workspace folder
+.claude-workspace/
+claude-workspace/
+
+# others
+.envrc
+**/valet/
+valet/
+.env.*
+!.env.example
+!.env.*.example
+apps.conf
+
+# Claude Code workflow artifacts
+.devwork/
+.playwright-mcp
+.scripts
+.docs
