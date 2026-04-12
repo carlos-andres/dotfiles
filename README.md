@@ -14,6 +14,7 @@ The goal is not perfection, but iteration: documenting what works, what changes,
 * Terminals: `WezTerm`, `iTerm2`
 * OS: `macOS`
 * Editor: `nano` (Homebrew)
+* Prompt: `Starship`
 
 ## Philosophy
 
@@ -29,6 +30,7 @@ This repo is a **log of discoveries** and workflow improvements — both a worki
 | File | Purpose |
 |------|---------|
 | `.bash_profile` | Bash shell profile with PATH, history, aliases, and optional tool integrations |
+| `.config/starship.toml` | Starship prompt configuration with a custom two-line format and language/tool modules |
 | `.inputrc` | Readline configuration for tab completion and command-line behavior |
 | `.gitignore_global` | Global Git ignore rules for macOS, IDE, and AI tool artifacts |
 | `.nanorc` | Nano editor setup with syntax highlighting and modern defaults |

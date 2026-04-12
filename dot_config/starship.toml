@@ -1,0 +1,247 @@
+# Global settings
+scan_timeout = 30
+command_timeout = 1000
+add_newline = true
+
+# Dracula-inspired color palette
+palette = "dracula"
+
+[palettes.dracula]
+background = "#282a36"
+current_line = "#44475a"
+foreground = "#f8f8f2"
+comment = "#6272a4"
+cyan = "#8be9fd"
+green = "#50fa7b"
+orange = "#ffb86c"
+pink = "#ff79c6"
+purple = "#bd93f9"
+red = "#ff5555"
+yellow = "#f1fa8c"
+
+# Prompt format (order matters)
+format = """
+[┌─](bold purple)\
+$os\
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$python\
+$nodejs\
+$php\
+$java\
+$rust\
+$golang\
+$swift\
+$lua\
+$docker_context\
+$kubernetes\
+$aws\
+$gcloud\
+$package\
+$direnv\
+$sudo\
+$shlvl\
+$jobs\
+$status\
+$cmd_duration\
+$line_break\
+[└─](bold purple)$character"""
+
+# Character symbol
+[character]
+success_symbol = "[](bold green) "
+error_symbol = "[](bold red) "
+vimcmd_symbol = "[](bold yellow) "
+
+# OS detection (useful over SSH to identify remote hosts)
+[os]
+disabled = false
+format = "[$symbol](bold white) "
+
+[os.symbols]
+Macos = " "
+Linux = " "
+Ubuntu = " "
+Debian = " "
+Amazon = " "
+CentOS = " "
+AlmaLinux = " "
+RockyLinux = " "
+Redhat = " "
+RedHatEnterprise = " "
+Unknown = " "
+
+[username]
+format = "[$user]($style)@"
+style_user = "bold cyan"
+style_root = "bold red"
+show_always = false
+
+[hostname]
+format = "[$ssh_symbol$hostname]($style) "
+style = "bold purple"
+ssh_only = true
+ssh_symbol = " "
+
+# Directory
+[directory]
+format = "[$path]($style)[$read_only]($read_only_style) "
+style = "bold cyan"
+read_only = " 󰌾"
+read_only_style = "red"
+truncation_length = 3
+truncation_symbol = "…"
+home_symbol = "~"
+fish_style_pwd_dir_length = 1
+substitutions = { "Development" = "󰲋", "Projects" = "󰲋", "Documents" = "󰈙", "Downloads" = "" }
+
+# Git
+[git_branch]
+format = "on [$symbol$branch]($style) "
+symbol = " "
+style = "bold purple"
+truncation_length = 20
+truncation_symbol = "…"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style) )"
+style = "bold red"
+ahead = " ${count}"
+behind = " ${count}"
+diverged = " ${ahead_count}  ${behind_count}"
+conflicted = " "
+untracked = " "
+stashed = " "
+modified = " "
+staged = " "
+renamed = " "
+deleted = " "
+
+[git_commit]
+tag_symbol = "  "
+
+# Command duration
+[cmd_duration]
+format = "took [$duration]($style) "
+style = "bold yellow"
+min_time = 2000
+show_milliseconds = false
+
+# Cloud providers
+[aws]
+format = 'on [$symbol($profile )(\($region\) )(\[$duration\] )]($style)'
+symbol = " "
+style = "bold orange"
+
+[gcloud]
+format = 'on [$symbol$account(@$domain)(\($region\))]($style) '
+symbol = " "
+style = "bold blue"
+
+# Languages (user's actual stack)
+[nodejs]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold green"
+detect_extensions = ["js", "mjs", "cjs", "ts"]
+
+[php]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold purple"
+
+[python]
+format = 'via [${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+symbol = " "
+style = "bold green"
+pyenv_version_name = true
+python_binary = ["./venv/bin/python", "python", "python3", "python2"]
+
+[java]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold red"
+
+[rust]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold red"
+
+[golang]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold cyan"
+
+[swift]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold orange"
+
+[lua]
+format = "via [$symbol($version )]($style)"
+symbol = " "
+style = "bold blue"
+
+# Infrastructure
+[docker_context]
+format = "via [$symbol$context]($style) "
+symbol = " "
+style = "bold blue"
+only_with_files = true
+
+[kubernetes]
+format = 'on [ ($user on )($cluster in )$context \($namespace\)]($style) '
+style = "bold purple"
+disabled = false
+detect_env_vars = ["KUBECONFIG"]
+
+[package]
+format = "is [$version]($style) "
+symbol = " "
+style = "bold yellow"
+disabled = false
+
+# Utilities
+[direnv]
+disabled = false
+format = "[$symbol$loaded/$allowed]($style) "
+symbol = " "
+style = "bold orange"
+
+[sudo]
+disabled = false
+format = "[$symbol]($style)"
+symbol = " "
+style = "bold red"
+
+[shlvl]
+disabled = false
+threshold = 2
+format = "[$symbol$shlvl]($style) "
+symbol = " "
+style = "bold yellow"
+
+[jobs]
+symbol = " "
+format = "[$symbol$number]($style) "
+
+[status]
+symbol = " "
+format = "[$symbol$status]($style) "
+disabled = false
+
+[container]
+symbol = " "
+format = "[$symbol$context]($style) "
+
+# Line break
+[line_break]
+disabled = false
+
+[time]
+format = "at [$time]($style) "
+style = "bold purple"
+disabled = true

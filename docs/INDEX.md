@@ -7,6 +7,7 @@ Reference for each managed dotfile: what it configures, why it exists, and how i
 | File | Description | Doc |
 |------|-------------|-----|
 | `.bash_profile` | Bash shell profile for PATH, history, prompt, and CLI tool helpers | [bash_profile.md](bash_profile.md) |
+| `.config/starship.toml` | Starship prompt configuration with custom format, palette, and modules | [starship.md](starship.md) |
 | `.inputrc` | GNU Readline configuration for bash and other CLI tools | [inputrc.md](inputrc.md) |
 | `.gitignore_global` | Global Git ignore rules applied across all repositories | [gitignore_global.md](gitignore_global.md) |
 | `.nanorc` | Nano text editor configuration with syntax highlighting | [nanorc.md](nanorc.md) |
