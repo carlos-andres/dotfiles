@@ -1,0 +1,702 @@
+# =============================================================================
+# .bash_profile - macOS Bash 5.x Configuration
+# =============================================================================
+# General-purpose macOS Bash profile with Homebrew and optional tool integrations.
+# Keep machine-specific overrides in local-only config where possible.
+#
+# Sections:
+#   1. PATH Management
+#   2. Environment Variables
+#   3. Bash Options & History (Ultra-Clean Mode)
+#   4. Tool Initialization
+#   5. Shell Completions
+#   6. Prompt & Navigation (Starship, zoxide)
+#   7. Aliases & Functions
+#   8. Utilities & Diagnostics
+# =============================================================================
+
+# =============================================================================
+# 1. PATH MANAGEMENT
+# =============================================================================
+
+# Detect the common Homebrew prefix without invoking brew on every shell startup.
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  export HOMEBREW_PREFIX="/opt/homebrew"
+elif [[ -x /usr/local/bin/brew ]]; then
+  export HOMEBREW_PREFIX="/usr/local"
+else
+  export HOMEBREW_PREFIX="/opt/homebrew"
+fi
+
+# Optimized PATH: User bins -> Homebrew -> Keg-only tools -> System
+# Priority order:
+#   1. ~/.local/bin, ~/bin        - User-installed tools (highest priority)
+#   2. /opt/homebrew/bin,sbin     - Homebrew (override system tools)
+#   3. /opt/homebrew/opt/*/bin    - Keg-only formulas (curl, php, etc.)
+#   4. $PATH                      - System paths (macOS defaults, lowest priority)
+#
+# Note: NVM, mise, and other tools will dynamically prepend their paths when loaded.
+#       macOS cryptex paths (/var/run/com.apple.security.cryptexd/...) are placeholders
+#       for Apple's Rapid Security Response system. They're usually empty but required.
+
+export PATH="$HOME/.local/bin:$HOME/bin:$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$HOMEBREW_PREFIX/opt/curl/bin:$PATH"
+
+# Utility function: Remove duplicate PATH entries while preserving order
+path_dedupe() {
+  if [ -n "$PATH" ]; then
+    local new_path=""
+    local path_array
+    IFS=: read -ra path_array <<< "$PATH"
+    for dir in "${path_array[@]}"; do
+      if [[ ":$new_path:" != *":$dir:"* ]]; then
+        new_path="${new_path:+$new_path:}$dir"
+      fi
+    done
+    PATH="$new_path"
+    export PATH
+  fi
+}
+
+# =============================================================================
+# 2. ENVIRONMENT VARIABLES
+# =============================================================================
+
+# --- Locale Settings ---
+export LANG=en_US.UTF-8
+export TERM=xterm-256color
+
+# --- Homebrew Configuration ---
+# Set compiler flags for Homebrew curl (only if curl formula is installed)
+if [[ -d "$HOMEBREW_PREFIX/opt/curl" ]]; then
+  export LDFLAGS="-L$HOMEBREW_PREFIX/opt/curl/lib"
+  export CPPFLAGS="-I$HOMEBREW_PREFIX/opt/curl/include"
+fi
+
+# Homebrew environment optimizations
+export HOMEBREW_NO_ANALYTICS=1              # Disable analytics for privacy
+export HOMEBREW_NO_AUTO_UPDATE=1            # Manual updates only (via brewup)
+export HOMEBREW_NO_ENV_HINTS=1              # Disable environment hints
+
+# --- Shell Environment ---
+unset MAILCHECK                              # Disable mail notifications
+export BASH_SILENCE_DEPRECATION_WARNING=1   # Silence macOS bash deprecation warning
+
+# --- Colors ---
+export LS_COLORS="di=1;36:ln=1;35:so=1;32:pi=1;33:ex=1;31:bd=1;34:cd=1;34:su=0;41:sg=0;46:tw=0;42:ow=0;43"
+export CLICOLOR=1
+
+# --- Editor Preferences ---
+export EDITOR="nano"
+export VISUAL="nano"
+
+# =============================================================================
+# 3. BASH OPTIONS & HISTORY (Ultra-Clean Mode)
+# =============================================================================
+
+# --- Bash Shell Options ---
+shopt -s histappend       # Append to history file, don't overwrite
+shopt -s cmdhist          # Save multi-line commands as one line
+shopt -s checkwinsize     # Update LINES and COLUMNS after each command
+shopt -s cdspell          # Auto-correct minor typos in cd commands
+shopt -s dirspell 2>/dev/null || true  # Auto-correct directory name typos
+shopt -s nocaseglob       # Case-insensitive filename completion
+# NOTE: dotglob is NOT enabled globally to prevent unexpected behavior
+# (e.g., 'rm *' would include hidden files like .git, .env)
+# Use 'shopt -s dotglob' temporarily in functions that need it
+shopt -s extglob          # Extended pattern matching
+
+# Disable lithist - store multi-line commands as single line
+shopt -u lithist
+
+# Enable globstar if supported (bash 4+)
+if ((BASH_VERSINFO[0] >= 4)); then
+  shopt -s globstar       # Enable ** recursive glob patterns
+fi
+
+# --- History Configuration: Ultra-Clean Mode ---
+# Philosophy: Only ONE copy of each command, aggressive filtering
+
+export HISTFILE="$HOME/.bash_history"
+export HISTSIZE=5000                        # Commands in memory
+export HISTFILESIZE=10000                   # Commands in file
+export HISTCONTROL=ignoreboth:erasedups     # Ignore duplicates, space-prefixed, and erase all previous duplicates
+export HISTTIMEFORMAT='%F %T '              # Timestamp format
+
+# Aggressive filtering: Common noise commands
+# Strategy: Block duplicates (&) and simple/frequent commands, but keep meaningful work
+# Ignored: navigation (cd, z, pwd), listing (ls variants), history control, simple git
+export HISTIGNORE='&:ls:ls *:ll:ll *:la:la *:l:l *:l1:l1 *:lf:lf *:pwd:exit:clear:history:history *:cd:cd *:cd ..:cd ../..:z:z *:bg:fg:jobs:gs:git status:gsp:gd:ga:gb:gl:gp:[ \t]*'
+
+# --- Real-time History Management ---
+# Cross-shell sync: write new commands, read from other shells
+# NOTE: PROMPT_COMMAND is modified below after direnv/Starship initialization
+__bash_history_sync() {
+  history -a
+  history -n
+}
+
+# --- History Utility Functions ---
+
+# histclean: Deduplicate while preserving Bash timestamp records
+histclean() {
+  local hf="${HISTFILE:-$HOME/.bash_history}"
+  [[ -f "$hf" ]] || { echo "No history file at $hf"; return 1; }
+  
+  echo "Cleaning history: $hf"
+  
+  # Backup
+  local backup="${hf}.bak.$(date +%Y%m%d-%H%M%S)"
+  cp -p "$hf" "$backup"
+  echo "  → Backup created: $backup"
+  
+  # Count before
+  local before=$(grep -cv "^#" "$hf" 2>/dev/null || echo 0)
+  
+  # Deduplicate while preserving the timestamp line paired with each command.
+  # This keeps the last occurrence of each command in chronological order.
+  awk '
+    function emit(idx) {
+      if (ts[idx] != "") {
+        print ts[idx]
+      }
+      print cmd[idx]
+    }
+    /^#[0-9]+$/ {
+      pending_ts=$0
+      next
+    }
+    {
+      n++
+      cmd[n]=$0
+      ts[n]=pending_ts
+      pending_ts=""
+      last[$0]=n
+    }
+    END {
+      for (i = 1; i <= n; i++) {
+        if (last[cmd[i]] == i) {
+          emit(i)
+        }
+      }
+    }
+  ' "$hf" > "${hf}.tmp" && mv "${hf}.tmp" "$hf"
+  
+  # Count after
+  local after=$(grep -cv "^#" "$hf" 2>/dev/null || echo 0)
+  local removed=$((before - after))
+  
+  # Reload
+  history -c
+  history -r "$hf"
+  
+  echo "  → Cleaned: $before → $after commands ($removed duplicates removed)"
+  echo "  ✓ History reloaded into current shell"
+}
+
+# histnuke: Clear all history (with confirmation)
+histnuke() {
+  read -p "⚠️  Clear ALL history? This cannot be undone. [y/N] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    history -c
+    : >| "$HISTFILE"
+    echo "✓ History cleared (both memory and file)"
+  else
+    echo "Cancelled."
+  fi
+}
+
+# histstats: Show history statistics
+histstats() {
+  local hf="${HISTFILE:-$HOME/.bash_history}"
+  [[ -f "$hf" ]] || { echo "No history file at $hf"; return 1; }
+  
+  local total=$(wc -l < "$hf")
+  local timestamps=$(grep -c "^#" "$hf" 2>/dev/null || echo 0)
+  local commands=$((total - timestamps))
+  local unique=$(grep -v "^#" "$hf" | sort -u | wc -l)
+  local duplicates=$((commands - unique))
+  local duplicate_pct=0
+  [[ $commands -gt 0 ]] && duplicate_pct=$(( (duplicates * 100) / commands ))
+  
+  echo "=== History Statistics ==="
+  echo "File: $hf"
+  echo "Total lines: $total"
+  echo "Commands: $commands"
+  echo "Unique: $unique"
+  echo "Duplicates: $duplicates ($duplicate_pct%)"
+  echo ""
+  echo "Top 10 most repeated commands:"
+  grep -v "^#" "$hf" | sort | uniq -c | sort -rn | head -10
+}
+
+# =============================================================================
+# 4. TOOL INITIALIZATION
+# =============================================================================
+
+# --- uv shell integration ---
+if [[ -f "$HOME/.local/bin/env" ]]; then
+  # shellcheck disable=SC1090
+  . "$HOME/.local/bin/env"
+fi
+
+# --- NVM (Node Version Manager) - Lazy Loading ---
+export NVM_DIR="$HOME/.nvm"
+
+__load_nvm() {
+  unset -f nvm node npm npx
+  [[ -s "$HOMEBREW_PREFIX/opt/nvm/nvm.sh" ]] && \. "$HOMEBREW_PREFIX/opt/nvm/nvm.sh"
+  [[ -s "$HOMEBREW_PREFIX/opt/nvm/etc/bash_completion.d/nvm" ]] && \. "$HOMEBREW_PREFIX/opt/nvm/etc/bash_completion.d/nvm"
+}
+
+nvm() { __load_nvm && nvm "$@"; }
+node() { __load_nvm && node "$@"; }
+npm() { __load_nvm && npm "$@"; }
+npx() { __load_nvm && npx "$@"; }
+
+# --- WezTerm shell integration ---
+# Enables instant tab directory updates in WezTerm (via OSC 7 escape sequences)
+if [[ -n "$WEZTERM_PANE" ]]; then
+  WEZTERM_SHELL_INTEGRATION="$HOME/.config/wezterm/shell-integration.sh"
+  if [[ -r "$WEZTERM_SHELL_INTEGRATION" ]]; then
+    # shellcheck disable=SC1090
+    . "$WEZTERM_SHELL_INTEGRATION"
+  fi
+fi
+
+# =============================================================================
+# 5. SHELL COMPLETIONS
+# =============================================================================
+
+# Load Homebrew bash-completion when available
+if [[ -r "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh" ]]; then
+  . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+fi
+
+# --- Additional Tool Completions ---
+
+# Composer completion (lazy loaded on first tab completion)
+_composer_lazy() {
+  unset -f _composer_lazy
+  eval "$(composer completion bash 2>/dev/null)"
+  return 124
+}
+if command -v composer >/dev/null 2>&1; then
+  complete -F _composer_lazy composer
+fi
+
+# FZF fuzzy finder completion and key bindings
+# Optimized: Use hardcoded path instead of brew --prefix call
+if command -v fzf >/dev/null 2>&1; then
+  [[ -f "$HOMEBREW_PREFIX/opt/fzf/shell/completion.bash" ]] && source "$HOMEBREW_PREFIX/opt/fzf/shell/completion.bash"
+  [[ -f "$HOMEBREW_PREFIX/opt/fzf/shell/key-bindings.bash" ]] && source "$HOMEBREW_PREFIX/opt/fzf/shell/key-bindings.bash"
+fi
+# FZF key bindings: Ctrl+R (history), Ctrl+T (files), Alt+C (directories)
+
+# Note: npm, jq, curl, nano, ssh completions load automatically via bash-completion@2 lazy loading
+
+# =============================================================================
+# 6. PROMPT & NAVIGATION
+# =============================================================================
+
+# Strategy: Initialize tools first, then build a custom PROMPT_COMMAND that
+# ensures direnv runs BEFORE Starship evaluates the prompt on every command.
+
+# Initialize direnv (but we'll override its PROMPT_COMMAND)
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook bash)"
+fi
+
+# Initialize Starship prompt (but we'll override its PROMPT_COMMAND too)
+if command -v starship >/dev/null 2>&1; then
+  eval "$(starship init bash)"
+fi
+
+# --- CRITICAL FIX: Ensure direnv runs BEFORE Starship ---
+# Problem: By default, PROMPT_COMMAND hooks run left-to-right, causing Starship
+# to evaluate the prompt with stale environment variables before direnv updates them.
+#
+# Solution: Build a custom PROMPT_COMMAND that explicitly orders execution:
+#   1. History sync (write new commands, read from other shells)
+#   2. direnv hook (update environment variables based on .envrc)
+#   3. Starship precmd (render prompt with fresh environment)
+#
+# NOTE: We don't set PROMPT_COMMAND here because zoxide will be initialized later
+# and will prepend its own hook. Instead, we'll set it at the very end of the file.
+
+# =============================================================================
+# 7. ALIASES & FUNCTIONS
+# =============================================================================
+
+# --- Navigation Aliases ---
+alias ..='cd ..'
+alias .2='cd ../..'
+alias .3='cd ../../..'
+alias .4='cd ../../../..'
+alias .5='cd ../../../../..'
+
+# --- Listing Aliases (eza) ---
+if command -v eza >/dev/null 2>&1; then
+  alias ls='eza --group-directories-first --color=always --git-ignore'
+  alias l='eza -1 --group-directories-first --color=always --git-ignore'
+  alias l1='eza -1 --group-directories-first --color=always'
+  alias la='eza -la --group-directories-first --color=always'
+  alias la1='eza -la1 --group-directories-first --color=always'
+  alias ll='eza -l --git --header --group-directories-first'
+  alias lf='eza -1 --only-files --color=always'
+  alias tree='eza --tree --level=3 --group-directories-first --git-ignore'
+else
+  alias l='ls -1'
+  alias l1='ls -1'
+  alias la='ls -la'
+  alias la1='ls -la'
+  alias ll='ls -lh'
+  alias lf='ls -1'
+fi
+
+# --- Brew Housekeeping ---
+alias brewup="brew update && brew upgrade --greedy && brew cleanup && brew autoremove && brew doctor"
+alias brewg='brew update-reset && brew cleanup --prune=all --scrub && rm -rf "$(brew --cache)" && brew update --force && brew upgrade --greedy'
+alias brewinfo="brew info"
+alias brewlist="brew list"
+alias brewsearch="brew search"
+
+# --- Optional Tool Shortcuts ---
+if command -v tc-ssh >/dev/null 2>&1; then
+  alias ts="tc-ssh"
+fi
+if [[ -d "$HOMEBREW_PREFIX/opt/php@8.3/bin" ]]; then
+  alias use-php83='export PATH="$HOMEBREW_PREFIX/opt/php@8.3/bin:${PATH}"'
+fi
+
+# --- Git Aliases ---
+alias gs='git status'
+alias gsp='git status --porcelain --untracked-files=normal'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gd='git diff'
+alias gds='git diff --staged'
+alias gb='git branch'
+alias gbn='git symbolic-ref --short HEAD'
+alias gl='git log --oneline --graph --decorate --all'
+alias gfa='git fetch --all'
+alias gpod='git pull origin develop'
+alias gpor='git pull origin release'
+alias gpud='git pull upstream develop'
+alias gcrd='git log HEAD..origin/develop --oneline -n 10'
+alias gcrr='git log HEAD..origin/release --oneline -n 10'
+
+# --- Tmux Aliases ---
+alias ta='tmux attach'
+alias tl='tmux list-sessions'
+alias tn='tmux new-session -s'
+
+# --- Utility Aliases ---
+alias cal='cal -m'
+alias du='du -h -d 1'
+alias cp='cp -i'
+alias mv='mv -i'
+alias reload='source ~/.bash_profile && echo "✓ .bash_profile reloaded"'
+alias editprofile='${EDITOR:-nano} ~/.bash_profile'
+alias path='echo -e ${PATH//:/\\n}'
+
+# --- Git Functions (with directory checking) ---
+gsu() {
+  if command -v bat >/dev/null 2>&1; then
+    (git -c color.status=always status -uall -- ":!node_modules" ":!vendor" ":!storage" ":!logs" && \
+     git ls-files --others -- ":!node_modules" ":!vendor" ":!storage" ":!logs") | bat --paging=always --style=plain
+  else
+    git -c color.status=always status -uall -- ":!node_modules" ":!vendor" ":!storage" ":!logs"
+    git ls-files --others -- ":!node_modules" ":!vendor" ":!storage" ":!logs"
+  fi
+}
+
+# --- Colima (Docker replacement) Aliases ---
+if command -v colima >/dev/null 2>&1; then
+  alias colimastart="colima start"
+  alias colimainfo="colima status && cat ~/.colima/default.yaml"
+  alias colimarestart="colima stop && colima start"
+  alias colimastop="colima stop"
+fi
+
+# --- Python Virtual Environment ---
+pyvenv-on() {
+  local activate="$HOME/.global-python-venvs/global/bin/activate"
+  if [[ -r "$activate" ]]; then
+    # shellcheck disable=SC1090
+    . "$activate"
+    echo "Global Python virtualenv enabled"
+  else
+    echo "Global Python virtualenv not found: $activate" >&2
+    return 1
+  fi
+}
+
+pyvenv-off() {
+  if declare -F deactivate >/dev/null 2>&1; then
+    deactivate
+    echo "Global Python virtualenv disabled"
+  else
+    echo "No active virtualenv to deactivate"
+  fi
+}
+
+# ================================================
+# Optional Claude CLI Integration
+# ================================================
+
+# Output optimization (synced with ~/.claude/settings.json)
+export BASH_MAX_OUTPUT_LENGTH=1000
+export BASH_DEFAULT_TIMEOUT_MS=30000
+export DISABLE_NON_ESSENTIAL_MODEL_CALLS=1
+export DISABLE_COST_WARNINGS=1
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000
+export CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1
+
+if command -v claude >/dev/null 2>&1; then
+  alias cc='claude'
+  alias ccc='claude -c'
+  alias ccr='claude --resume'
+
+  ccspec() { claude -p "Skeptical senior architect. Interview using AskUserQuestionTool. Be critical. Generate SPEC.md after. Idea: $*"; }
+  ccreview() { claude -p "Senior code reviewer. Find bugs, security issues, performance problems. No praise. Review: $*"; }
+  cclaravel() { claude -p "Laravel expert. Terse. Follow conventions. Task: $*"; }
+  ccdb() { claude -p "DBA expert. Query performance, indexes, N+1. Be precise. Task: $*"; }
+  ccdebug() { claude -p "Debug this. Root cause + fix only. Error: $*"; }
+fi
+
+# --- SSH Fuzzy Finder ---
+sshf() {
+  command -v fzf >/dev/null 2>&1 || { echo "fzf is required for sshf" >&2; return 1; }
+  [[ -r "$HOME/.ssh/config" ]] || { echo "No readable SSH config at $HOME/.ssh/config" >&2; return 1; }
+
+  local host
+  host=$(awk '/^Host[[:space:]]/ {print $2}' ~/.ssh/config 2>/dev/null | \
+    grep -v '\*' | \
+    sort -u | \
+    fzf --height 40% --reverse --border --prompt="SSH to: ")
+  
+  [[ -n "$host" ]] && ssh "$host"
+}
+alias sshq='sshf'
+
+# =============================================================================
+# 8. UTILITIES & DIAGNOSTICS
+# =============================================================================
+
+# --- PATH Diagnostic Functions ---
+
+# Show PATH in readable format with line numbers
+path_show() {
+  echo "=== Current PATH ==="
+  echo "$PATH" | tr ':' '\n' | nl -w2 -s'. '
+  echo ""
+  echo "Total entries: $(echo "$PATH" | tr ':' '\n' | wc -l)"
+  echo "Unique entries: $(echo "$PATH" | tr ':' '\n' | sort -u | wc -l)"
+}
+
+# Check for PATH issues and provide recommendations
+path_doctor() {
+  echo "=== PATH Health Check ==="
+  echo ""
+  
+  # Check for duplicates
+  local duplicates=$(echo "$PATH" | tr ':' '\n' | sort | uniq -d)
+  if [[ -n "$duplicates" ]]; then
+    echo "⚠️  Duplicate paths found:"
+    echo "$duplicates" | sed 's/^/    /'
+    echo ""
+  else
+    echo "✓ No duplicate paths"
+  fi
+  
+  # Check Homebrew priority
+  local homebrew_pos=$(echo "$PATH" | tr ':' '\n' | grep -n "^$HOMEBREW_PREFIX/bin$" | cut -d: -f1 | head -1)
+  local usr_bin_pos=$(echo "$PATH" | tr ':' '\n' | grep -n "^/usr/bin$" | cut -d: -f1 | head -1)
+  
+  if [[ -n "$homebrew_pos" ]] && [[ -n "$usr_bin_pos" ]]; then
+    if ((homebrew_pos < usr_bin_pos)); then
+      echo "✓ Homebrew has priority over system tools"
+    else
+      echo "⚠️  System /usr/bin comes before Homebrew"
+      echo "    Homebrew position: $homebrew_pos"
+      echo "    /usr/bin position: $usr_bin_pos"
+    fi
+  fi
+  echo ""
+  
+  # Check for non-existent directories
+  echo "Checking for non-existent directories in PATH..."
+  local missing_count=0
+  local cryptex_count=0
+  
+  while IFS= read -r dir; do
+    if [[ ! -d "$dir" ]]; then
+      # Check if it's a cryptex path (expected to be missing - they're placeholders)
+      if [[ "$dir" == *"com.apple.security.cryptexd"* ]]; then
+        ((cryptex_count++))
+      else
+        echo "  ⚠️  Missing: $dir"
+        ((missing_count++))
+      fi
+    fi
+  done < <(echo "$PATH" | tr ':' '\n')
+  
+  if ((missing_count == 0)); then
+    echo "✓ All PATH directories exist"
+  else
+    echo "  Found $missing_count missing directories"
+  fi
+  
+  # Informational note about cryptex paths
+  if ((cryptex_count > 0)); then
+    echo "ℹ️  Note: $cryptex_count cryptex paths are placeholders (normal for macOS security updates)"
+  fi
+  echo ""
+  
+  # Check tool versions
+  echo "=== Tool Versions ==="
+  for tool in git python3 node npm jq awk curl; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      local tool_path=$(which "$tool")
+      if [[ "$tool_path" == "$HOMEBREW_PREFIX"* ]]; then
+        echo "  ✓ $tool: Homebrew ($tool_path)"
+      elif [[ "$tool_path" == "$HOME"* ]]; then
+        echo "  ℹ️  $tool: User install ($tool_path)"
+      else
+        echo "  ⚠️  $tool: System ($tool_path)"
+      fi
+    fi
+  done
+  echo ""
+  
+  echo "=== Summary ==="
+  echo "Run 'brew doctor' for Homebrew-specific checks"
+  echo "Run 'path_show' to see full PATH"
+}
+
+# Quick tool version check
+versions() {
+  echo "=== Installed Tool Versions ==="
+  command -v bash >/dev/null && echo "Bash: $(bash --version | head -1)"
+  command -v git >/dev/null && echo "Git: $(git --version)"
+  command -v python3 >/dev/null && echo "Python: $(python3 --version)"
+  command -v node >/dev/null && echo "Node: $(node --version)"
+  command -v npm >/dev/null && echo "npm: $(npm --version)"
+  command -v composer >/dev/null && echo "Composer: $(composer --version 2>/dev/null | head -1)"
+  command -v php >/dev/null && echo "PHP: $(php --version | head -1)"
+  command -v brew >/dev/null && echo "Homebrew: $(brew --version | head -1)"
+}
+
+# System information summary
+sysinfo() {
+  echo "=== System Information ==="
+  echo "macOS: $(sw_vers -productVersion)"
+  echo "Hostname: $(hostname)"
+  echo "User: $USER"
+  echo "Shell: $BASH_VERSION"
+  echo "Homebrew: $(brew --version 2>/dev/null | head -1 || echo 'Not installed')"
+  echo "Terminal: $TERM"
+  echo ""
+  versions
+}
+
+prev() {
+  command -v pet >/dev/null 2>&1 || { echo "pet is required for prev" >&2; return 1; }
+
+  local prev_cmd
+  prev_cmd=$(history | tail -n 2 | head -n 1 | sed 's/^[[:space:]]*[0-9][0-9]*[[:space:]]*//')
+  [[ -n "$prev_cmd" ]] || { echo "No previous command found" >&2; return 1; }
+
+  pet new "$prev_cmd"
+}
+
+# =============================================================================
+# FINAL PATH CLEANUP & VERIFICATION
+# =============================================================================
+
+# =============================================================================
+# ZOXIDE INITIALIZATION
+# =============================================================================
+# Initialize zoxide before the final PROMPT_COMMAND setup so its hook is available.
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init bash)"
+fi
+
+# =============================================================================
+# FINAL PROMPT_COMMAND SETUP (Must be after ALL tool initializations)
+# =============================================================================
+# Now that all tools have been initialized, rebuild PROMPT_COMMAND with proper ordering
+# This ensures direnv runs BEFORE Starship evaluates the prompt
+
+if declare -f _direnv_hook >/dev/null 2>&1 && command -v starship >/dev/null 2>&1; then
+  # Both direnv and starship are available - use ordered execution
+  # Format: zoxide (if present) ; history ; direnv ; starship
+  if declare -f __zoxide_hook >/dev/null 2>&1; then
+    PROMPT_COMMAND='__zoxide_hook; __bash_history_sync; _direnv_hook; starship_precmd'
+  else
+    PROMPT_COMMAND='__bash_history_sync; _direnv_hook; starship_precmd'
+  fi
+elif declare -f _direnv_hook >/dev/null 2>&1; then
+  # Only direnv available
+  if declare -f __zoxide_hook >/dev/null 2>&1; then
+    PROMPT_COMMAND='__zoxide_hook; __bash_history_sync; _direnv_hook'
+  else
+    PROMPT_COMMAND='__bash_history_sync; _direnv_hook'
+  fi
+elif command -v starship >/dev/null 2>&1; then
+  # Only starship available
+  if declare -f __zoxide_hook >/dev/null 2>&1; then
+    PROMPT_COMMAND='__zoxide_hook; __bash_history_sync; starship_precmd'
+  else
+    PROMPT_COMMAND='__bash_history_sync; starship_precmd'
+  fi
+else
+  # Neither direnv nor starship - just history sync (and maybe zoxide)
+  if declare -f __zoxide_hook >/dev/null 2>&1; then
+    PROMPT_COMMAND='__zoxide_hook; __bash_history_sync'
+  else
+    PROMPT_COMMAND='__bash_history_sync'
+  fi
+fi
+
+if [[ -r "$HOME/.cargo/env" ]]; then
+  # shellcheck disable=SC1090
+  . "$HOME/.cargo/env"
+fi
+
+if [[ -d "$HOME/.lmstudio/bin" ]]; then
+  export PATH="$PATH:$HOME/.lmstudio/bin"
+fi
+
+if [[ -r "${HOME}/.iterm2_shell_integration.bash" ]]; then
+  # shellcheck disable=SC1090
+  . "${HOME}/.iterm2_shell_integration.bash"
+fi
+
+# Load machine-specific overrides outside the tracked profile when needed.
+if [[ -r "${HOME}/.bash_profile.local" ]]; then
+  # shellcheck disable=SC1090
+  . "${HOME}/.bash_profile.local"
+fi
+
+# Final deduplication to clean up any duplicates from tool initialization.
+path_dedupe
+
+# =============================================================================
+# QUICK REFERENCE
+# =============================================================================
+#   reload          - Reload this configuration
+#   editprofile     - Edit this file
+#   path_show       - Display PATH in readable format
+#   path_doctor     - Check PATH health and Homebrew priority
+#   versions        - Show installed tool versions
+#   sysinfo         - Display system information
+#   histclean       - Deduplicate history
+#   histstats       - Show history statistics
+#   histnuke        - Clear all history
+#   brewup          - Update, upgrade, and clean Homebrew
+# =============================================================================
+# END OF .bash_profile
+# =============================================================================
