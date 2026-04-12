@@ -28,6 +28,7 @@ This repo is a **log of discoveries** and workflow improvements — both a worki
 
 | File | Purpose |
 |------|---------|
+| `.bash_profile` | Bash shell profile with PATH, history, aliases, and optional tool integrations |
 | `.inputrc` | Readline configuration for tab completion and command-line behavior |
 | `.gitignore_global` | Global Git ignore rules for macOS, IDE, and AI tool artifacts |
 | `.nanorc` | Nano editor setup with syntax highlighting and modern defaults |
@@ -45,7 +46,7 @@ Scripts in `.chezmoiscripts/` run automatically during `chezmoi apply`:
 
 ## Usage
 
-This repository is managed with [`chezmoi`](https://www.chezmoi.io/), allowing reproducible setup across machines.
+This repository is managed with [`chezmoi`](https://www.chezmoi.io/). Some files are suitable for full apply-based setup, while others are tracked primarily as a cleaned backup and reference.
 
 ```bash
 chezmoi init https://github.com/carlos-andres/dotfiles.git
@@ -53,6 +54,18 @@ chezmoi apply
 ```
 
 Setup scripts run automatically on first apply. See the [documentation index](docs/INDEX.md) for prerequisites that require manual steps (like installing nano via Homebrew).
+
+## Workflow
+
+This repository currently follows a mostly one-way workflow for some files, especially shell configuration:
+
+1. Make changes in the live local file first.
+2. Capture the current version into the source repo with `chezmoi add`.
+3. Sanitize the source copy so it stays reasonably portable and does not expose machine-specific details.
+4. Commit and push the cleaned source file.
+5. Do not run `chezmoi apply` back onto the same machine unless the source file has been reviewed for local-only customizations.
+
+For `.bash_profile`, the tracked version is intended to be an agnostic backup and reference, not an exact replacement for every machine.
 
 ## Roadmap
 
